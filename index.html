@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>猜數字遊戲</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            flex-direction: column;
+            color: #333;
+        }
+        .container {
+            background-color: #fff;
+            padding: 30px 40px;
+            border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            width: 100%;
+            max-width: 450px;
+        }
+        h1 {
+            color: #4CAF50;
+            margin-bottom: 20px;
+        }
+        p {
+            font-size: 1.1em;
+            margin-bottom: 15px;
+        }
+        .message {
+            font-size: 1.2em;
+            font-weight: bold;
+            margin-bottom: 20px;
+            color: #333;
+        }
+        .win-message {
+            color: #28a745; /* 綠色 */
+        }
+        .lose-message {
+            color: #dc3545; /* 紅色 */
+        }
+        input[type="number"] {
+            width: calc(100% - 20px); /* 減去 padding 的寬度 */
+            padding: 12px;
+            margin-bottom: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 1em;
+            box-sizing: border-box; /* 確保 padding 不會增加總寬度 */
+        }
+        button {
+            background-color: #007bff; /* 藍色 */
+            color: white;
+            padding: 12px 25px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1.1em;
+            transition: background-color 0.3s ease;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #0056b3; /* 懸停時顏色變深 */
+        }
+        button:disabled {
+            background-color: #cccccc; /* 禁用時變灰 */
+            cursor: not-allowed;
+        }
+        .reset-button {
+            background-color: #6c757d; /* 灰色 */
+        }
+        .reset-button:hover {
+            background-color: #5a6268; /* 懸停時顏色變深 */
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>猜數字遊戲</h1>
+        <p class="message {% if result == 'win' %}win-message{% elif result == 'lose' %}lose-message{% endif %}">{{ message }}</p>
+
+        {% if not game_over %}
+            <p>你已經猜了 {{ guesses_taken }} 次 (總共 7 次機會)。</p>
+            <form method="POST">
+                <input type="number" name="guess" min="1" max="100" required autofocus placeholder="請輸入你的猜測 (1-100)">
+                <button type="submit">猜！</button>
+            </form>
+        {% else %}
+            <p>遊戲已結束。</p>
+        {% endif %}
+
+        <form action="{{ url_for('reset_game') }}" method="GET">
+            <button type="submit" class="reset-button">重新開始遊戲</button>
+        </form>
+    </div>
+</body>
+</html>
