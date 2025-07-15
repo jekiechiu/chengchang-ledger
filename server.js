@@ -3,125 +3,157 @@ const { Pool } = require('pg');
 const multer = require('multer');
 const { createClient } = require('@supabase/supabase-js');
 const cors = require('cors');
-require('dotenv').config(); // 載入根目錄的 .env 檔案中的環境變數
+const path = require('path'); // <-- 【新增】確保這行在這裡
+require('dotenv').config();
 
 const app = express();
-const port = process.env.PORT || 3001; // 從環境變數獲取 PORT
+const port = process.env.PORT || 3001; // Render 會注入 process.env.PORT
+
+// ====== 中間件 (Middleware) ======
+app.use(cors()); // 允許跨域請求
+app.use(express.json()); // 解析 JSON 格式的請求體
+app.use(express.urlencoded({ extended: true })); // 解析 URL-encoded 格式的請求體
 
 // ====== Supabase 配置 ======
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_ANON_KEY;
+const supabaseUrl = process.env.SUPABASE_URL; // 從環境變數讀取
+const supabaseKey = process.env.SUPABASE_ANON_KEY; // 從環境變數讀取
 const supabase = createClient(supabaseUrl, supabaseKey, {
-  auth: { persistSession: false }
+  auth: { persistSession: false } // 在後端不需要持久化會話
 });
 
 // ====== PostgreSQL 資料庫連接池配置 ======
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
+  connectionString: process.env.DATABASE_URL, // 從環境變數讀取
   ssl: {
-    rejectUnauthorized: false
+    rejectUnauthorized: false // 允許非官方 CA 簽名的 SSL 憑證，因為 Render 和 Supabase 可能有自簽憑證
   }
 });
 
-// ====== Multer 配置 (處理檔案上傳) ======
-const upload = multer({ storage: multer.memoryStorage() });
+// 測試資料庫連線
+pool.connect((err, client, done) => {
+  if (err) {
+    console.error('Database connection error:', err.message);
+    return;
+  }
+  console.log('Connected to the database');
+  client.release(); // 釋放客戶端連線
+});
 
-// ====== 中間件 (Middleware) ======
-app.use(cors());
-app.use(express.json());
+// ====== Multer 配置 (用於處理檔案上傳) ======
+// 記憶體儲存，因為檔案會直接上傳到 Supabase Storage
+const storage = multer.memoryStorage();
+const upload = multer({ storage: storage });
 
-// ====== 路由 (Routes) ======
+// ====== API 路由 ======
 
 // 1. POST /api/records - 新增帳本記錄 (包含圖片上傳)
 app.post('/api/records', upload.single('image'), async (req, res) => {
-  const { date, type, category, itemName, amount, notes } = req.body;
-  let imageUrl = null;
+  const { date, type, category, item_name, amount, notes } = req.body;
+  const imageFile = req.file;
+
+  let image_url = null;
+  const bucketName = 'ledger_images'; // <-- 【檢查】這裡的名稱與你 Supabase 中的 Bucket 名稱一致
 
   try {
-    if (req.file) {
-      const file = req.file;
-      const fileExtension = file.originalname.split('.').pop();
-      const fileName = `${Date.now()}-${Math.random().toString(36).substring(2, 15)}.${fileExtension}`;
-      const bucketName = 'ledger-images'; // 確保這個 bucket 存在於你的 Supabase Storage
-
-      const { data: uploadData, error: uploadError } = await supabase.storage
+    // 如果有圖片上傳，則上傳到 Supabase Storage
+    if (imageFile) {
+      const fileName = `${Date.now()}-${imageFile.originalname}`;
+      const { data, error } = await supabase.storage
         .from(bucketName)
-        .upload(fileName, file.buffer, {
-          contentType: file.mimetype,
-          upsert: false
+        .upload(fileName, imageFile.buffer, {
+          contentType: imageFile.mimetype,
+          upsert: false // 不覆蓋同名檔案
         });
 
-      if (uploadError) {
-        console.error('Supabase upload error:', uploadError);
-        return res.status(500).json({ message: '圖片上傳失敗', error: uploadError.message });
+      if (error) {
+        console.error('Supabase Storage Upload Error:', error);
+        return res.status(500).json({ message: '圖片上傳失敗', error: error.message });
       }
 
+      // 獲取圖片的公開 URL
       const { data: publicUrlData } = supabase.storage
         .from(bucketName)
         .getPublicUrl(fileName);
 
-      imageUrl = publicUrlData.publicUrl;
+      if (publicUrlData && publicUrlData.publicUrl) {
+        image_url = publicUrlData.publicUrl;
+        console.log('Image uploaded successfully:', image_url);
+      } else {
+        console.warn('Could not get public URL for image.');
+      }
     }
 
-    const queryText = `
+    // 將資料儲存到 PostgreSQL 資料庫
+    const query = `
       INSERT INTO records (date, type, category, item_name, amount, notes, image_url)
       VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING *;
     `;
-    const values = [date, type, category, itemName, amount, notes, imageUrl];
+    const values = [date, type, category, item_name, amount, notes, image_url];
+    const result = await pool.query(query, values);
 
-    const result = await pool.query(queryText, values);
-    res.status(201).json(result.rows[0]);
-  } catch (err) {
-    console.error('新增記錄失敗:', err);
-    res.status(500).json({ message: '伺服器內部錯誤', error: err.message });
+    res.status(201).json({ message: '資料儲存成功', record: result.rows[0] });
+
+  } catch (error) {
+    console.error('Error saving record:', error);
+    res.status(500).json({ message: '資料儲存失敗，請檢查！', error: error.message });
   }
 });
 
 // 2. GET /api/records - 查詢帳本記錄
 app.get('/api/records', async (req, res) => {
-  const { startDate, endDate, category } = req.query;
+  const { startDate, endDate, category, type } = req.query;
 
-  let queryText = 'SELECT * FROM records WHERE 1=1';
+  let query = 'SELECT * FROM records WHERE 1=1';
   const values = [];
   let paramIndex = 1;
 
   if (startDate) {
-    queryText += ` AND date >= $${paramIndex++}`;
+    query += ` AND date >= $${paramIndex}`;
     values.push(startDate);
+    paramIndex++;
   }
   if (endDate) {
-    queryText += ` AND date <= $${paramIndex++}`;
+    query += ` AND date <= $${paramIndex}`;
     values.push(endDate);
+    paramIndex++;
   }
   if (category && category !== '所有項目') {
-    queryText += ` AND category = $${paramIndex++}`;
+    query += ` AND category = $${paramIndex}`;
     values.push(category);
+    paramIndex++;
+  }
+  if (type && (type === '收入' || type === '支出')) {
+    query += ` AND type = $${paramIndex}`;
+    values.push(type);
+    paramIndex++;
   }
 
-  queryText += ' ORDER BY date DESC;';
+  query += ' ORDER BY date DESC;'; // 按日期降序排列
 
   try {
-    const result = await pool.query(queryText, values);
-    res.json(result.rows);
-  } catch (err) {
-    console.error('查詢記錄失敗:', err);
-    res.status(500).json({ message: '伺服器內部錯誤', error: err.message });
+    const result = await pool.query(query, values);
+    res.status(200).json(result.rows);
+  } catch (error) {
+    console.error('Error fetching records:', error);
+    res.status(500).json({ message: '查詢資料失敗', error: error.message });
   }
 });
 
-// ====== 靜態檔案服務 (用於前端) ======
-// 當部署在 Render 的 Web Service 上時，也需要提供前端靜態檔案
-app.use(express.static('build')); // 假設前端打包後在根目錄的 'build' 資料夾
+// ====== 靜態檔案服務 (用於前端 React) ======
+// 這部分確保後端 Express 伺服器能提供 React 的 build/ 資料夾內容
+app.use(express.static(path.join(__dirname, 'build')));
 
-// 任何前端路由都導向 index.html
+// 處理所有其他 GET 請求，將其路由到 React 應用程式的 index.html
 app.get('*', (req, res) => {
-  if (!req.path.startsWith('/api')) { // 避免攔截 API 請求
+  // 如果請求路徑不是以 /api 開頭 (即不是後端 API 請求)
+  if (!req.path.startsWith('/api')) {
     res.sendFile(path.join(__dirname, 'build', 'index.html'));
   }
 });
-// 注意：這裡需要 path 模組，請在 server.js 開頭加上：const path = require('path');
 
+
+// ====== 啟動伺服器 ======
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
 });
