@@ -4,6 +4,7 @@ const multer = require('multer');
 const { createClient } = require('@supabase/supabase-js');
 const cors = require('cors');
 const path = require('path'); // 確保有引入 path 模組
+const { v4: uuidv4 } = require('uuid'); // 重新引入 uuid 庫
 require('dotenv').config();
 
 const app = express();
@@ -85,9 +86,8 @@ app.get('/api/records', async (req, res) => {
 // 添加新的記帳記錄
 app.post('/api/records', upload.single('image'), async (req, res) => {
   try {
-    // 移除了 itemName 的解構
     const { date, type, category, amount, notes } = req.body;
-    const imageFile = req.file; // Multer 會將檔案放在 req.file
+    const imageFile = req.file;
 
     let imageUrl = null;
 
@@ -102,13 +102,14 @@ app.post('/api/records', upload.single('image'), async (req, res) => {
                         String(now.getSeconds()).padStart(2, '0') + '-' +
                         String(now.getMilliseconds()).padStart(3, '0');
 
-      // **重要修改：對原始檔名進行 URL 編碼**
-      const encodedOriginalName = encodeURIComponent(imageFile.originalname);
-      const uniqueFileName = `${timestamp}-${encodedOriginalName}`; // 將時間戳和編碼後的原始檔名結合
+      // **重要：只提取原始檔名副檔名，並結合時間戳和 UUID 確保唯一性**
+      const fileExtension = path.extname(imageFile.originalname); // 獲取副檔名，例如 ".jpg"
+      const uniqueBaseName = `${timestamp}-${uuidv4()}`; // 時間戳 + UUID 作為唯一基名 (完全沒有中文或特殊字元)
+      const uniqueFileName = `${uniqueBaseName}${fileExtension}`; // 組合生成最終檔名
 
       const { data, error } = await supabase.storage
         .from('records-images') // 請替換為您的 Supabase 儲存桶名稱
-        .upload(uniqueFileName, imageFile.buffer, { // 使用 uniqueFileName
+        .upload(uniqueFileName, imageFile.buffer, { // 使用這個保證唯一的檔名
           contentType: imageFile.mimetype,
           upsert: false // 保持 false，因為我們旨在確保檔名是唯一的
         });
@@ -121,7 +122,7 @@ app.post('/api/records', upload.single('image'), async (req, res) => {
       // 獲取公共可訪問的 URL
       const { data: publicURLData } = supabase.storage
         .from('records-images') // 請替換為您的 Supabase 儲存桶名稱
-        .getPublicUrl(uniqueFileName); // 這裡也要使用 uniqueFileName
+        .getPublicUrl(uniqueFileName); // 這裡也要使用這個唯一的檔名
 
       if (publicURLData && publicURLData.publicUrl) {
         imageUrl = publicURLData.publicUrl;
@@ -131,7 +132,6 @@ app.post('/api/records', upload.single('image'), async (req, res) => {
     }
 
     // 執行 SQL INSERT
-    // 移除了 item_name 欄位和對應的參數
     const result = await pool.query(
       'INSERT INTO records (date, type, category, amount, notes, image_url) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
       [date, type, category, amount, notes, imageUrl]
@@ -139,8 +139,18 @@ app.post('/api/records', upload.single('image'), async (req, res) => {
 
     res.status(201).json(result.rows[0]);
   } catch (err) {
-    console.error('Error saving record:', err);
-    res.status(500).json({ error: 'Failed to save record' });
+      // 捕獲並日誌詳細錯誤信息
+      console.error('Error saving record:', err);
+      // 根據錯誤類型提供更具體的響應，例如 400 或 403
+      if (err.code === '42703') { // PostgreSQL: undefined_column (例如 created_at 不存在)
+          res.status(400).json({ error: 'Database column error. Please check your table schema.', details: err.message });
+      } else if (err.severity === 'ERROR' && err.message.includes('violates not-null constraint')) {
+          res.status(400).json({ error: 'Missing required field. Please ensure all necessary fields are provided.', details: err.message });
+      } else if (err.statusCode && (err.statusCode === '400' || err.statusCode === '403')) { // Supabase Storage errors
+          res.status(err.statusCode).json({ error: err.error || 'Supabase Storage Error', message: err.message });
+      } else {
+          res.status(500).json({ error: 'Failed to save record', details: err.message });
+      }
   }
 });
 
