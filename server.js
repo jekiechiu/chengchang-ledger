@@ -4,6 +4,7 @@ const multer = require('multer');
 const { createClient } = require('@supabase/supabase-js');
 const cors = require('cors');
 const path = require('path');
+const { v4: uuidv4 } = require('uuid'); // 新增：引入 uuid 庫
 require('dotenv').config();
 
 const app = express();
@@ -28,14 +29,18 @@ const supabaseKey = process.env.SUPABASE_ANON_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 // Multer 設定 - 使用 memoryStorage 將檔案暫存於記憶體
-const upload = multer({ storage: multer.memoryStorage() });
+const upload = multer({
+  storage: multer.memoryStorage(),
+  // 您也可以在這裡設定檔案大小限制，例如 5MB
+  // limits: { fileSize: 5 * 1024 * 1024 }
+});
 
 // ====== 中間件 (Middleware) ======
 app.use(cors()); // 簡化後的 CORS 設定
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// 如果您想讓您的 React 前端靜態檔案從這個 Express 服務器提供
+// 提供 React 前端靜態檔案
 // 確保 build 資料夾位於您的專案根目錄
 app.use(express.static(path.join(__dirname, 'build')));
 
@@ -45,7 +50,8 @@ app.use(express.static(path.join(__dirname, 'build')));
 app.get('/api/records', async (req, res) => {
   try {
     const { startDate, endDate, category } = req.query;
-    let query = 'SELECT id, date, type, category, amount, notes, image_url, created_at FROM records'; // 已移除 item_name
+    // 移除了 item_name 欄位
+    let query = 'SELECT id, date, type, category, amount, notes, image_url, created_at FROM records';
     let params = [];
     let conditions = [];
     let paramIndex = 1;
@@ -80,19 +86,21 @@ app.get('/api/records', async (req, res) => {
 // 添加新的記帳記錄
 app.post('/api/records', upload.single('image'), async (req, res) => {
   try {
-    // 已移除 itemName
+    // 移除了 itemName 的解構
     const { date, type, category, amount, notes } = req.body;
     const imageFile = req.file; // Multer 會將檔案放在 req.file
 
     let imageUrl = null;
 
     if (imageFile) {
-      const fileName = `${Date.now()}-${imageFile.originalname}`;
+      // 修改：使用 UUID 生成一個真正唯一的檔名
+      const uniqueFileName = `${uuidv4()}-${imageFile.originalname}`;
+
       const { data, error } = await supabase.storage
-        .from('records-images') // 替換為您的 Supabase 儲存桶名稱
-        .upload(fileName, imageFile.buffer, {
+        .from('records-images') // 請替換為您的 Supabase 儲存桶名稱
+        .upload(uniqueFileName, imageFile.buffer, { // 使用 uniqueFileName
           contentType: imageFile.mimetype,
-          upsert: false // 如果檔案存在則不覆蓋
+          upsert: false
         });
 
       if (error) {
@@ -102,17 +110,18 @@ app.post('/api/records', upload.single('image'), async (req, res) => {
 
       // 獲取公共可訪問的 URL
       const { data: publicURLData } = supabase.storage
-        .from('records-images') // 替換為您的 Supabase 儲存桶名稱
-        .getPublicUrl(fileName);
+        .from('records-images') // 請替換為您的 Supabase 儲存桶名稱
+        .getPublicUrl(uniqueFileName); // 這裡也要使用 uniqueFileName
 
       if (publicURLData && publicURLData.publicUrl) {
         imageUrl = publicURLData.publicUrl;
       } else {
-        console.warn('Supabase did not return a public URL for', fileName);
+        console.warn('Supabase did not return a public URL for', uniqueFileName);
       }
     }
 
     // 執行 SQL INSERT
+    // 移除了 item_name 欄位和對應的參數
     const result = await pool.query(
       'INSERT INTO records (date, type, category, amount, notes, image_url) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
       [date, type, category, amount, notes, imageUrl]
@@ -125,10 +134,11 @@ app.post('/api/records', upload.single('image'), async (req, res) => {
   }
 });
 
-// 提供 React 前端靜態檔案
+// 如果沒有其他 API 路由匹配，就將請求導向 React 前端
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'build', 'index.html'));
 });
+
 
 // ====== 啟動伺服器 ======
 app.listen(port, () => {
