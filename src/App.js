@@ -2,8 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import './App.css';
 
-// 從環境變數讀取後端 API 網址 (在 React 中，環境變數需要 REACT_APP_ 前綴)
-const API_URL = process.env.REACT_APP_API_URL;
+// 移除了 const API_URL = process.env.REACT_APP_API_URL;
 
 function App() {
   const [formData, setFormData] = useState({
@@ -39,7 +38,8 @@ function App() {
         dataToSend.append('image', imageFile);
       }
 
-      const response = await axios.post(`${API_URL}/api/records`, dataToSend, {
+      // 注意這裡：直接使用相對路徑 /api/records
+      const response = await axios.post(`/api/records`, dataToSend, {
         headers: {
           'Content-Type': 'multipart/form-data'
         }
@@ -57,7 +57,8 @@ function App() {
 
   const fetchRecords = async () => {
     try {
-      const response = await axios.get(`${API_URL}/api/records`, { params: searchParams });
+      // 注意這裡：直接使用相對路徑 /api/records
+      const response = await axios.get(`/api/records`, { params: searchParams });
       setRecords(response.data);
     } catch (error) {
       console.error('Error fetching records:', error.response ? error.response.data : error.message);
