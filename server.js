@@ -4,7 +4,8 @@ const multer = require('multer');
 const { createClient } = require('@supabase/supabase-js');
 const cors = require('cors');
 const path = require('path');
-const { v4: uuidv4 } = require('uuid'); // 新增：引入 uuid 庫
+// 移除了 uuid 的引入：
+// const { v4: uuidv4 } = require('uuid');
 require('dotenv').config();
 
 const app = express();
@@ -93,8 +94,19 @@ app.post('/api/records', upload.single('image'), async (req, res) => {
     let imageUrl = null;
 
     if (imageFile) {
-      // 修改：使用 UUID 生成一個真正唯一的檔名
-      const uniqueFileName = `${uuidv4()}-${imageFile.originalname}`;
+      // **修改：使用日期時間精確到毫秒來生成檔案名**
+      const now = new Date();
+      // 格式化日期時間為 YYYY-MM-DD_HH-MM-SS-ms
+      const timestamp = now.getFullYear() + '-' +
+                        String(now.getMonth() + 1).padStart(2, '0') + '-' +
+                        String(now.getDate()).padStart(2, '0') + '_' +
+                        String(now.getHours()).padStart(2, '0') + '-' +
+                        String(now.getMinutes()).padStart(2, '0') + '-' +
+                        String(now.getSeconds()).padStart(2, '0') + '-' +
+                        String(now.getMilliseconds()).padStart(3, '0');
+
+      // 將時間戳和原始檔名結合起來，避免潛在的檔名重複
+      const uniqueFileName = `${timestamp}-${imageFile.originalname}`;
 
       const { data, error } = await supabase.storage
         .from('records-images') // 請替換為您的 Supabase 儲存桶名稱
