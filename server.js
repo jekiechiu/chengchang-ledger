@@ -52,7 +52,7 @@ app.post('/api/records', upload.single('image'), async (req, res) => {
   const imageFile = req.file;
 
   let image_url = null;
-  const bucketName = 'ledger-images'; // <-- 【檢查】這裡的名稱與你 Supabase 中的 Bucket 名稱一致
+  const bucketName = 'test'; // <-- 【檢查】這裡的名稱與你 Supabase 中的 Bucket 名稱一致
 
   try {
     // 如果有圖片上傳，則上傳到 Supabase Storage
