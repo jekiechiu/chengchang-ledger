@@ -10,7 +10,9 @@ const app = express();
 const port = process.env.PORT || 3001; // Render 會注入 process.env.PORT
 
 // ====== 中間件 (Middleware) ======
-app.use(cors()); // 允許跨域請求
+app.use(cors({
+    origin: 'https://chengchang-ledger.onrender.com' // 這是你前端的部署 URL
+})); // 允許跨域請求
 app.use(express.json()); // 解析 JSON 格式的請求體
 app.use(express.urlencoded({ extended: true })); // 解析 URL-encoded 格式的請求體
 
