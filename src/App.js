@@ -2,11 +2,9 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import './App.css';
 
-// 移除了 const API_URL = process.env.REACT_APP_API_URL;
-
 function App() {
   const [formData, setFormData] = useState({
-    date: '', type: '收入', category: '', itemName: '', amount: '', notes: ''
+    date: '', type: '收入', category: '', amount: '', notes: '' // 已移除 itemName
   });
   const [imageFile, setImageFile] = useState(null);
   const [records, setRecords] = useState([]);
@@ -38,14 +36,14 @@ function App() {
         dataToSend.append('image', imageFile);
       }
 
-      // 注意這裡：直接使用相對路徑 /api/records
       const response = await axios.post(`/api/records`, dataToSend, {
         headers: {
           'Content-Type': 'multipart/form-data'
         }
       });
       console.log('Record added successfully:', response.data);
-      setFormData({ date: '', type: '收入', category: '', itemName: '', amount: '', notes: '' });
+      // setFormData 的重置已移除 itemName
+      setFormData({ date: '', type: '收入', category: '', amount: '', notes: '' });
       setImageFile(null);
       fetchRecords();
       alert('資料儲存成功！');
@@ -57,7 +55,6 @@ function App() {
 
   const fetchRecords = async () => {
     try {
-      // 注意這裡：直接使用相對路徑 /api/records
       const response = await axios.get(`/api/records`, { params: searchParams });
       setRecords(response.data);
     } catch (error) {
@@ -110,10 +107,7 @@ function App() {
               {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
             </select>
           </div>
-          <div className="form-group">
-            <label>項目名稱 (選填):</label>
-            <input type="text" name="itemName" value={formData.itemName} onChange={handleInputChange} placeholder="例如: 租金收入" />
-          </div>
+          {/* 已刪除項目名稱輸入框 */}
           <div className="form-group">
             <label>金額:</label>
             <input type="number" name="amount" value={formData.amount} onChange={handleInputChange} placeholder="例如: 1000" required />
@@ -165,7 +159,7 @@ function App() {
                 <th>日期</th>
                 <th>類型</th>
                 <th>項目別</th>
-                <th>項目名稱</th>
+                {/* 已刪除項目名稱表頭 */}
                 <th>金額</th>
                 <th>備註說明</th>
                 <th>附件照片</th>
@@ -177,7 +171,7 @@ function App() {
                   <td>{record.date}</td>
                   <td>{record.type}</td>
                   <td>{record.category}</td>
-                  <td>{record.item_name}</td>
+                  {/* 已刪除項目名稱單元格 */}
                   <td>{record.amount}</td>
                   <td>{record.notes}</td>
                   <td>
