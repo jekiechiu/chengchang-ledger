@@ -3,8 +3,8 @@ const { Pool } = require('pg');
 const multer = require('multer');
 const { createClient } = require('@supabase/supabase-js');
 const cors = require('cors');
-const path = require('path'); // 確保有引入 path 模組
-const { v4: uuidv4 } = require('uuid'); // 重新引入 uuid 庫
+const path = require('path');
+const { v4: uuidv4 } = require('uuid'); // 引入 uuid 庫
 require('dotenv').config();
 
 const app = express();
@@ -45,6 +45,19 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'build')));
 
 // ====== API 路由 ======
+
+// 新增：用於保持服務和資料庫活躍的 Keep-Alive 端點
+app.get('/api/keep-alive', async (req, res) => {
+  try {
+    // 執行一個非常輕量的資料庫查詢，不影響任何資料
+    await pool.query('SELECT 1;');
+    console.log('Keep-alive ping to database successful.');
+    res.status(200).send('Service and database are active.');
+  } catch (err) {
+    console.error('Keep-alive ping to database failed:', err);
+    res.status(500).send('Keep-alive ping failed.');
+  }
+});
 
 // 獲取所有記帳記錄
 app.get('/api/records', async (req, res) => {
@@ -102,9 +115,9 @@ app.post('/api/records', upload.single('image'), async (req, res) => {
                         String(now.getSeconds()).padStart(2, '0') + '-' +
                         String(now.getMilliseconds()).padStart(3, '0');
 
-      // **重要：只提取原始檔名副檔名，並結合時間戳和 UUID 確保唯一性**
+      // 重要：只提取原始檔名副檔名，並結合時間戳和 UUID 確保唯一性
       const fileExtension = path.extname(imageFile.originalname); // 獲取副檔名，例如 ".jpg"
-      const uniqueBaseName = `${timestamp}-${uuidv4()}`; // 時間戳 + UUID 作為唯一基名 (完全沒有中文或特殊字元)
+      const uniqueBaseName = `${timestamp}-${uuidv4()}`; // 時間戳 + UUID 作為唯一基名
       const uniqueFileName = `${uniqueBaseName}${fileExtension}`; // 組合生成最終檔名
 
       const { data, error } = await supabase.storage
