@@ -15,19 +15,7 @@ const allowedOrigins = [
   'http://localhost:3000' // 如果您在本地開發前端，也請加入
 ];
 
-app.use(cors({
-  origin: function (origin, callback) {
-    // 允許沒有來源的請求 (例如來自 Postman 或 curl)
-    // 或者如果來源在允許列表中
-    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  methods: ['GET', 'POST', 'PUT', 'DELETE'], // 允許的 HTTP 方法
-  credentials: true, // 如果您需要發送 cookie 或授權頭部
-})); // 允許跨域請求
+app.use(cors()); // 允許跨域請求
 app.use(express.json()); // 解析 JSON 格式的請求體
 app.use(express.urlencoded({ extended: true })); // 解析 URL-encoded 格式的請求體
 
