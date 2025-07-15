@@ -42,7 +42,7 @@ app.post('/api/records', upload.single('image'), async (req, res) => {
       const file = req.file;
       const fileExtension = file.originalname.split('.').pop();
       const fileName = `${Date.now()}-${Math.random().toString(36).substring(2, 15)}.${fileExtension}`;
-      const bucketName = 'ledger_images'; // 確保這個 bucket 存在於你的 Supabase Storage
+      const bucketName = 'ledger-images'; // 確保這個 bucket 存在於你的 Supabase Storage
 
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from(bucketName)
