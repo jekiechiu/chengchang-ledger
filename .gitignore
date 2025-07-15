@@ -1,1 +1,12 @@
+# Node modules
+node_modules/
 
+# Build output
+build/
+
+# IDE specific files
+.vscode/
+.DS_Store
+
+# 環境變數檔案 (即使你說這次不介意隱私，好習慣還是列出來)
+.env
