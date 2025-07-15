@@ -1,1 +1,153 @@
+body {
+  font-family: Arial, sans-serif;
+  margin: 0;
+  padding: 20px;
+  background-color: #f4f7f6;
+  color: #333;
+}
 
+.app-container {
+  max-width: 900px;
+  margin: 0 auto;
+  background-color: #fff;
+  padding: 30px;
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+h1 {
+  text-align: center;
+  color: #2c3e50;
+  margin-bottom: 30px;
+}
+
+h2 {
+  color: #34495e;
+  border-bottom: 2px solid #eee;
+  padding-bottom: 10px;
+  margin-top: 40px;
+  margin-bottom: 20px;
+}
+
+section {
+  margin-bottom: 30px;
+}
+
+.form-group {
+  margin-bottom: 15px;
+  display: flex;
+  flex-direction: column;
+}
+
+.form-group label {
+  margin-bottom: 5px;
+  font-weight: bold;
+}
+
+.form-group input[type="date"],
+.form-group input[type="text"],
+.form-group input[type="number"],
+.form-group select,
+.form-group textarea {
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 1em;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.form-group input[type="radio"] {
+  margin-right: 5px;
+}
+
+.form-group textarea {
+  resize: vertical;
+  min-height: 60px;
+}
+
+button {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 5px;
+  font-size: 1em;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+  margin-right: 10px;
+}
+
+.save-button {
+  background-color: #28a745;
+  color: white;
+}
+.save-button:hover {
+  background-color: #218838;
+}
+
+.query-button {
+  background-color: #007bff;
+  color: white;
+}
+.query-button:hover {
+  background-color: #0069d9;
+}
+
+.clear-button {
+  background-color: #6c757d;
+  color: white;
+}
+.clear-button:hover {
+  background-color: #5a6268;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 20px;
+}
+
+table th, table td {
+  border: 1px solid #eee;
+  padding: 12px;
+  text-align: left;
+}
+
+table th {
+  background-color: #f2f2f2;
+  font-weight: bold;
+}
+
+table tbody tr:nth-child(even) {
+  background-color: #f9f9f9;
+}
+
+table img {
+  display: block;
+  max-width: 80px; /* 調整圖片大小 */
+  height: auto;
+  border-radius: 4px;
+}
+
+.summary {
+  margin-top: 20px;
+  padding: 15px;
+  background-color: #e9ecef;
+  border-radius: 5px;
+  display: flex;
+  justify-content: space-around;
+  font-weight: bold;
+  font-size: 1.1em;
+}
+
+@media (max-width: 768px) {
+  .form-group {
+    flex-direction: column;
+  }
+  .form-group label {
+    margin-bottom: 5px;
+  }
+  button {
+    width: auto;
+    margin-bottom: 10px;
+  }
+}
