@@ -160,19 +160,22 @@ app.post('/api/records', upload.single('image'), async (req, res) => {
   }
 });
 
-// 新增：更新現有記帳記錄
+// 更新現有記帳記錄
 app.put('/api/records/:id', upload.single('image'), async (req, res) => {
   const { id } = req.params;
   const { date, type, category, amount, notes, clearImage } = req.body;
   const imageFile = req.file;
 
   let imageUrl = null;
-  let oldImageUrl = null; // 用於存儲更新前的圖片URL，以便刪除
+  let oldImageUrl = null;
 
   try {
     // 1. 獲取當前記錄的舊圖片 URL (如果存在)
     const { rows: currentRecordRows } = await pool.query('SELECT image_url FROM records WHERE id = $1', [id]);
-    if (currentRecordRows.length > 0 && currentRecordRows[0].image_url) {
+    if (currentRecordRows.length === 0) {
+      return res.status(404).json({ error: 'Record not found.' });
+    }
+    if (currentRecordRows[0].image_url) {
       oldImageUrl = currentRecordRows[0].image_url;
     }
 
@@ -220,7 +223,9 @@ app.put('/api/records/:id', upload.single('image'), async (req, res) => {
       // 如果舊圖片存在，則刪除它
       if (oldImageUrl) {
         // 從 URL 中提取檔案路徑/名稱
-        const oldFileKey = oldImageUrl.split('/').pop(); // 假設檔名是 URL 的最後一部分
+        // 注意：Supabase 的 Public URL 格式為 `[URL]/storage/v1/object/public/bucket_name/file_path/file_name`
+        // 我們需要提取 `file_path/file_name`，但通常您的檔名不包含子路徑，所以直接拿最後一個部分即可。
+        const oldFileKey = oldImageUrl.split('/').pop();
         const { error: deleteError } = await supabase.storage
           .from('records-images')
           .remove([oldFileKey]);
@@ -255,10 +260,6 @@ app.put('/api/records/:id', upload.single('image'), async (req, res) => {
       [date, type, category, amount, notes, imageUrl, id]
     );
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Record not found.' });
-    }
-
     res.status(200).json(result.rows[0]);
   } catch (err) {
     console.error('Error updating record:', err);
@@ -273,6 +274,55 @@ app.put('/api/records/:id', upload.single('image'), async (req, res) => {
     }
   }
 });
+
+// 新增：刪除單筆記帳記錄 (包含相關附件)
+app.delete('/api/records/:id', async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    // 1. 先從資料庫獲取該記錄的 image_url
+    const { rows: recordToDelete } = await pool.query('SELECT image_url FROM records WHERE id = $1', [id]);
+
+    if (recordToDelete.length === 0) {
+      return res.status(404).json({ error: 'Record not found.' });
+    }
+
+    const imageUrlToDelete = recordToDelete[0].image_url;
+
+    // 2. 如果存在圖片 URL，則嘗試從 Supabase Storage 刪除檔案
+    if (imageUrlToDelete) {
+      // 從 URL 中提取檔案路徑/名稱
+      // 例如：https://abc.supabase.co/storage/v1/object/public/records-images/your-file-name.jpg
+      const fileKey = imageUrlToDelete.split('/').pop();
+      
+      if (fileKey) { // 確保 fileKey 不為空
+        const { error: deleteFileError } = await supabase.storage
+          .from('records-images') // 替換為您的 Supabase 儲存桶名稱
+          .remove([fileKey]); // 傳入檔案鍵 (名稱)
+
+        if (deleteFileError) {
+          console.error('Supabase file deletion error for record ID', id, ':', deleteFileError);
+          // 注意：這裡即使檔案刪除失敗，我們也可能希望繼續刪除資料庫記錄
+          // 否則如果圖片刪不掉，記錄也永遠刪不掉。您可以根據需求調整。
+        }
+      }
+    }
+
+    // 3. 從資料庫中刪除記錄
+    const result = await pool.query('DELETE FROM records WHERE id = $1 RETURNING id', [id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Record not found in database after attempting deletion.' });
+    }
+
+    res.status(200).json({ message: 'Record and associated file (if any) deleted successfully.', deletedId: result.rows[0].id });
+
+  } catch (err) {
+    console.error('Error deleting record:', err);
+    res.status(500).json({ error: 'Failed to delete record', details: err.message });
+  }
+});
+
 
 // 如果沒有其他 API 路由匹配，就將請求導向 React 前端
 app.get('*', (req, res) => {
