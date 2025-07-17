@@ -12,10 +12,10 @@ function App() {
     startDate: '', endDate: '', category: '所有項目'
   });
 
-  // 新增狀態來處理編輯功能
-  const [editingRecordId, setEditingRecordId] = useState(null); // 正在編輯的記錄ID
-  const [editingImageUrl, setEditingImageUrl] = useState(null); // 正在編輯記錄的現有圖片URL
-  const [clearExistingImage, setClearExistingImage] = useState(false); // 標記是否要清除現有圖片
+  // 狀態來處理編輯功能
+  const [editingRecordId, setEditingRecordId] = useState(null);
+  const [editingImageUrl, setEditingImageUrl] = useState(null);
+  const [clearExistingImage, setClearExistingImage] = useState(false);
 
   const categories = ['管理費', '租金收入', '水電費', '維修費', '其他'];
 
@@ -49,6 +49,21 @@ function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' }); // 捲動到頁面頂部以顯示表單
   };
 
+  // 點擊「刪除」按鈕時，處理刪除邏輯
+  const handleDeleteClick = async (recordId) => {
+    if (window.confirm('確定要刪除這筆記錄嗎？此操作無法恢復！')) {
+      try {
+        // 發送 DELETE 請求到後端
+        await axios.delete(`/api/records/${recordId}`);
+        alert('記錄刪除成功！');
+        fetchRecords(); // 刷新記錄列表
+      } catch (error) {
+        console.error('Error deleting record:', error.response ? error.response.data : error.message);
+        alert('刪除失敗，請檢查！');
+      }
+    }
+  };
+
   // 取消編輯模式
   const handleCancelEdit = () => {
     setEditingRecordId(null);
@@ -72,11 +87,9 @@ function App() {
       }
 
       // 如果是編輯模式，且使用者選擇清除現有圖片，且沒有上傳新圖片
-      if (editingRecordId && clearExistingImage && !imageFile) {
-        dataToSend.append('clearImage', 'true'); // 告知後端清除圖片
-      } else {
-        dataToSend.append('clearImage', 'false'); // 告知後端不清除圖片 (預設)
-      }
+      // 注意：clearImage 現在用來標記是否要清除舊圖 (如果沒有上傳新圖)
+      dataToSend.append('clearImage', editingRecordId && clearExistingImage && !imageFile ? 'true' : 'false');
+
 
       let response;
       if (editingRecordId) {
@@ -141,7 +154,7 @@ function App() {
       <h1>成昌大樓管理費相關明細</h1>
 
       <section className="input-section">
-        <h2>{editingRecordId ? '編輯資料' : '輸入資料'}</h2> {/* 標題根據模式改變 */}
+        <h2>{editingRecordId ? '編輯資料' : '輸入資料'}</h2>
         <form onSubmit={handleSubmit}>
           <div className="form-group">
             <label>日期:</label>
@@ -186,9 +199,9 @@ function App() {
             )}
           </div>
           <button type="submit" className="save-button">
-            {editingRecordId ? '更新資料' : '儲存資料'} {/* 按鈕文字根據模式改變 */}
+            {editingRecordId ? '更新資料' : '儲存資料'}
           </button>
-          {editingRecordId && ( // 編輯模式下顯示取消按鈕
+          {editingRecordId && (
             <button type="button" onClick={handleCancelEdit} className="cancel-button">
               取消編輯
             </button>
@@ -233,7 +246,7 @@ function App() {
                 <th>金額</th>
                 <th>備註說明</th>
                 <th>附件照片</th>
-                <th>操作</th> {/* 新增「操作」表頭 */}
+                <th>操作</th> {/* 操作表頭 */}
               </tr>
             </thead>
             <tbody>
@@ -255,7 +268,7 @@ function App() {
                   </td>
                   <td>
                     <button onClick={() => handleEditClick(record)} className="edit-button">編輯</button>
-                    {/* 未來您可以考慮在這裡添加刪除按鈕 */}
+                    <button onClick={() => handleDeleteClick(record.id)} className="delete-button">刪除</button> {/* 新增刪除按鈕 */}
                   </td>
                 </tr>
               ))}
@@ -272,4 +285,3 @@ function App() {
 }
 
 export default App;
-                
