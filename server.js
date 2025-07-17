@@ -23,7 +23,7 @@ pool.connect()
   .then(() => console.log('Connected to the database'))
   .catch(err => console.error('Database connection error', err));
 
-// ====== Supabase 設定 (用於檔案上傳) ======
+// ====== Supabase 設定 (用於檔案上傳/刪除) ======
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_ANON_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
@@ -63,7 +63,6 @@ app.get('/api/keep-alive', async (req, res) => {
 app.get('/api/records', async (req, res) => {
   try {
     const { startDate, endDate, category } = req.query;
-    // 移除了 item_name 欄位
     let query = 'SELECT id, date, type, category, amount, notes, image_url, created_at FROM records';
     let params = [];
     let conditions = [];
@@ -106,7 +105,6 @@ app.post('/api/records', upload.single('image'), async (req, res) => {
 
     if (imageFile) {
       const now = new Date();
-      // 格式化日期時間為 YYYY-MM-DD_HH-MM-SS-ms
       const timestamp = now.getFullYear() + '-' +
                         String(now.getMonth() + 1).padStart(2, '0') + '-' +
                         String(now.getDate()).padStart(2, '0') + '_' +
@@ -115,16 +113,15 @@ app.post('/api/records', upload.single('image'), async (req, res) => {
                         String(now.getSeconds()).padStart(2, '0') + '-' +
                         String(now.getMilliseconds()).padStart(3, '0');
 
-      // 重要：只提取原始檔名副檔名，並結合時間戳和 UUID 確保唯一性
-      const fileExtension = path.extname(imageFile.originalname); // 獲取副檔名，例如 ".jpg"
-      const uniqueBaseName = `${timestamp}-${uuidv4()}`; // 時間戳 + UUID 作為唯一基名
-      const uniqueFileName = `${uniqueBaseName}${fileExtension}`; // 組合生成最終檔名
+      const fileExtension = path.extname(imageFile.originalname);
+      const uniqueBaseName = `${timestamp}-${uuidv4()}`;
+      const uniqueFileName = `${uniqueBaseName}${fileExtension}`;
 
       const { data, error } = await supabase.storage
         .from('records-images') // 請替換為您的 Supabase 儲存桶名稱
-        .upload(uniqueFileName, imageFile.buffer, { // 使用這個保證唯一的檔名
+        .upload(uniqueFileName, imageFile.buffer, {
           contentType: imageFile.mimetype,
-          upsert: false // 保持 false，因為我們旨在確保檔名是唯一的
+          upsert: false
         });
 
       if (error) {
@@ -132,10 +129,9 @@ app.post('/api/records', upload.single('image'), async (req, res) => {
         return res.status(500).json({ error: 'Failed to upload image to Supabase Storage.' });
       }
 
-      // 獲取公共可訪問的 URL
       const { data: publicURLData } = supabase.storage
-        .from('records-images') // 請替換為您的 Supabase 儲存桶名稱
-        .getPublicUrl(uniqueFileName); // 這裡也要使用這個唯一的檔名
+        .from('records-images')
+        .getPublicUrl(uniqueFileName);
 
       if (publicURLData && publicURLData.publicUrl) {
         imageUrl = publicURLData.publicUrl;
@@ -144,7 +140,6 @@ app.post('/api/records', upload.single('image'), async (req, res) => {
       }
     }
 
-    // 執行 SQL INSERT
     const result = await pool.query(
       'INSERT INTO records (date, type, category, amount, notes, image_url) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
       [date, type, category, amount, notes, imageUrl]
@@ -152,18 +147,130 @@ app.post('/api/records', upload.single('image'), async (req, res) => {
 
     res.status(201).json(result.rows[0]);
   } catch (err) {
-      // 捕獲並日誌詳細錯誤信息
       console.error('Error saving record:', err);
-      // 根據錯誤類型提供更具體的響應，例如 400 或 403
-      if (err.code === '42703') { // PostgreSQL: undefined_column (例如 created_at 不存在)
+      if (err.code === '42703') {
           res.status(400).json({ error: 'Database column error. Please check your table schema.', details: err.message });
       } else if (err.severity === 'ERROR' && err.message.includes('violates not-null constraint')) {
           res.status(400).json({ error: 'Missing required field. Please ensure all necessary fields are provided.', details: err.message });
-      } else if (err.statusCode && (err.statusCode === '400' || err.statusCode === '403')) { // Supabase Storage errors
+      } else if (err.statusCode && (err.statusCode === '400' || err.statusCode === '403')) {
           res.status(err.statusCode).json({ error: err.error || 'Supabase Storage Error', message: err.message });
       } else {
           res.status(500).json({ error: 'Failed to save record', details: err.message });
       }
+  }
+});
+
+// 新增：更新現有記帳記錄
+app.put('/api/records/:id', upload.single('image'), async (req, res) => {
+  const { id } = req.params;
+  const { date, type, category, amount, notes, clearImage } = req.body;
+  const imageFile = req.file;
+
+  let imageUrl = null;
+  let oldImageUrl = null; // 用於存儲更新前的圖片URL，以便刪除
+
+  try {
+    // 1. 獲取當前記錄的舊圖片 URL (如果存在)
+    const { rows: currentRecordRows } = await pool.query('SELECT image_url FROM records WHERE id = $1', [id]);
+    if (currentRecordRows.length > 0 && currentRecordRows[0].image_url) {
+      oldImageUrl = currentRecordRows[0].image_url;
+    }
+
+    // 2. 處理圖片更新邏輯
+    if (imageFile) {
+      // 有新圖片上傳：
+      // 生成新圖片檔名
+      const now = new Date();
+      const timestamp = now.getFullYear() + '-' +
+                        String(now.getMonth() + 1).padStart(2, '0') + '-' +
+                        String(now.getDate()).padStart(2, '0') + '_' +
+                        String(now.getHours()).padStart(2, '0') + '-' +
+                        String(now.getMinutes()).padStart(2, '0') + '-' +
+                        String(now.getSeconds()).padStart(2, '0') + '-' +
+                        String(now.getMilliseconds()).padStart(3, '0');
+
+      const fileExtension = path.extname(imageFile.originalname);
+      const uniqueBaseName = `${timestamp}-${uuidv4()}`;
+      const newFileName = `${uniqueBaseName}${fileExtension}`;
+
+      // 上傳新圖片
+      const { data, error: uploadError } = await supabase.storage
+        .from('records-images')
+        .upload(newFileName, imageFile.buffer, {
+          contentType: imageFile.mimetype,
+          upsert: false
+        });
+
+      if (uploadError) {
+        console.error('Supabase new image upload error:', uploadError);
+        return res.status(500).json({ error: 'Failed to upload new image to Supabase Storage.' });
+      }
+
+      // 獲取新圖片的公共 URL
+      const { data: newPublicURLData } = supabase.storage
+        .from('records-images')
+        .getPublicUrl(newFileName);
+
+      if (newPublicURLData && newPublicURLData.publicUrl) {
+        imageUrl = newPublicURLData.publicUrl;
+      } else {
+        console.warn('Supabase did not return a public URL for new image:', newFileName);
+      }
+
+      // 如果舊圖片存在，則刪除它
+      if (oldImageUrl) {
+        // 從 URL 中提取檔案路徑/名稱
+        const oldFileKey = oldImageUrl.split('/').pop(); // 假設檔名是 URL 的最後一部分
+        const { error: deleteError } = await supabase.storage
+          .from('records-images')
+          .remove([oldFileKey]);
+
+        if (deleteError) {
+          console.error('Supabase old image deletion error:', deleteError);
+          // 這裡可以選擇是否回傳錯誤，或者僅記錄，因為主要操作是更新記錄
+        }
+      }
+    } else if (clearImage === 'true') {
+      // 沒有新圖片，但前端請求清除舊圖片
+      imageUrl = null; // 將資料庫中的圖片 URL 設為 NULL
+      if (oldImageUrl) {
+        // 從 URL 中提取檔案路徑/名稱
+        const oldFileKey = oldImageUrl.split('/').pop();
+        const { error: deleteError } = await supabase.storage
+          .from('records-images')
+          .remove([oldFileKey]);
+
+        if (deleteError) {
+          console.error('Supabase image clear deletion error:', deleteError);
+        }
+      }
+    } else {
+      // 沒有新圖片，也沒有請求清除，保留舊圖片 URL
+      imageUrl = oldImageUrl;
+    }
+
+    // 3. 更新資料庫記錄
+    const result = await pool.query(
+      'UPDATE records SET date = $1, type = $2, category = $3, amount = $4, notes = $5, image_url = $6 WHERE id = $7 RETURNING *',
+      [date, type, category, amount, notes, imageUrl, id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Record not found.' });
+    }
+
+    res.status(200).json(result.rows[0]);
+  } catch (err) {
+    console.error('Error updating record:', err);
+    if (err.code === '42703') {
+        res.status(400).json({ error: 'Database column error. Please check your table schema.', details: err.message });
+    } else if (err.severity === 'ERROR' && err.message.includes('violates not-null constraint')) {
+        res.status(400).json({ error: 'Missing required field. Please ensure all necessary fields are provided.', details: err.message });
+    } else if (err.statusCode && (err.statusCode === '400' || err.statusCode === '403')) {
+        res.status(err.statusCode).json({ error: err.error || 'Supabase Storage Error', message: err.message });
+    } else {
+        res.status(500).json({ error: 'Failed to update record', details: err.message });
+    }
   }
 });
 
