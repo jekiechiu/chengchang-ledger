@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import './App.css'; // 假設您有 App.css
 
-// 現在直接指向自己後端的相對路徑
+// 指向自己後端的相對路徑
 const API_BASE_URL = '/api/records'; 
 
 function App() { 
@@ -13,12 +13,10 @@ function App() {
 
   const fetchRecords = async () => {
     try {
-      // 獲取所有記錄，向自己的後端API發送請求
       const response = await axios.get(API_BASE_URL); 
       setRecords(response.data);
     } catch (error) {
       console.error('Error fetching records:', error.response ? error.response.data : error.message);
-      // 您可以在這裡添加一個使用者友好的錯誤訊息
       // alert('無法加載資料，請檢查服務是否正常運行。');
     }
   };
@@ -42,6 +40,12 @@ function App() {
   const incomeTotal = records.filter(r => r.type === '收入').reduce((sum, r) => sum + parseFloat(r.amount || 0), 0);
   const expenseTotal = records.filter(r => r.type === '支出').reduce((sum, r) => sum + parseFloat(r.amount || 0), 0);
 
+  // 輔助函數：將數字格式化為貨幣顯示 (XXX,XXX)
+  const formatCurrency = (number) => {
+    // 確保是數字，並格式化為中文數字千分位格式
+    return parseFloat(number || 0).toLocaleString('zh-TW', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  };
+
   return (
     <div className="app-container">
       <h1>成昌大樓管理費支用明細</h1>
@@ -58,7 +62,7 @@ function App() {
                   <th>日期</th>
                   <th>類型</th>
                   <th>項目別</th>
-                  <th>金額</th>
+                  <th className="text-right">金額</th> {/* 金額表頭靠右對齊 */}
                   <th>備註說明</th>
                   <th>憑證</th> 
                 </tr>
@@ -69,7 +73,7 @@ function App() {
                     <td>{new Date(record.date).toLocaleDateString('zh-TW')}</td> 
                     <td>{record.type}</td>
                     <td>{record.category}</td>
-                    <td>{record.amount}</td>
+                    <td className="text-right">{formatCurrency(record.amount)}</td> {/* 金額數據靠右對齊並格式化 */}
                     <td>{record.notes}</td>
                     <td>
                       {record.image_url ? (
@@ -98,8 +102,8 @@ function App() {
           </>
         )}
         <div className="summary">
-          <span>收入總計: ${incomeTotal.toFixed(2)}</span>
-          <span>支出總計: ${expenseTotal.toFixed(2)}</span>
+          <span>收入總計: ${formatCurrency(incomeTotal)}</span> {/* 總計格式化 */}
+          <span>支出總計: ${formatCurrency(expenseTotal)}</span> {/* 總計格式化 */}
         </div>
       </section>
     </div>
