@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import './App.css'; // 假設您有 App.css，如果沒有請確保此行存在
+import './App.css';
 
 function App() {
   const [formData, setFormData] = useState({
@@ -36,17 +36,21 @@ function App() {
   // 點擊「編輯」按鈕時，將資料填充到表單
   const handleEditClick = (record) => {
     setEditingRecordId(record.id);
+
+    // *** 修正點：確保日期為 YYYY-MM-DD 格式 ***
+    const formattedDate = record.date ? new Date(record.date).toISOString().split('T')[0] : '';
+
     setFormData({
-      date: record.date,
+      date: formattedDate, // 使用格式化後的日期
       type: record.type,
       category: record.category,
       amount: record.amount,
       notes: record.notes
     });
-    setEditingImageUrl(record.image_url); // 設置現有圖片URL
-    setImageFile(null); // 清除任何待處理的新圖片檔案
-    setClearExistingImage(false); // 重置清除圖片標誌
-    window.scrollTo({ top: 0, behavior: 'smooth' }); // 捲動到頁面頂部以顯示表單
+    setEditingImageUrl(record.image_url);
+    setImageFile(null);
+    setClearExistingImage(false);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   // 點擊「刪除」按鈕時，處理刪除邏輯
@@ -86,10 +90,7 @@ function App() {
         dataToSend.append('image', imageFile); // 上傳新圖片
       }
 
-      // 如果是編輯模式，且使用者選擇清除現有圖片，且沒有上傳新圖片
-      // 注意：clearImage 現在用來標記是否要清除舊圖 (如果沒有上傳新圖)
       dataToSend.append('clearImage', editingRecordId && clearExistingImage && !imageFile ? 'true' : 'false');
-
 
       let response;
       if (editingRecordId) {
@@ -246,7 +247,7 @@ function App() {
                 <th>金額</th>
                 <th>備註說明</th>
                 <th>附件照片</th>
-                <th>操作</th> {/* 操作表頭 */}
+                <th>操作</th>
               </tr>
             </thead>
             <tbody>
@@ -268,7 +269,7 @@ function App() {
                   </td>
                   <td>
                     <button onClick={() => handleEditClick(record)} className="edit-button">編輯</button>
-                    <button onClick={() => handleDeleteClick(record.id)} className="delete-button">刪除</button> {/* 新增刪除按鈕 */}
+                    <button onClick={() => handleDeleteClick(record.id)} className="delete-button">刪除</button>
                   </td>
                 </tr>
               ))}
