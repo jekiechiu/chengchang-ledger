@@ -113,7 +113,7 @@ function App() {
             <tbody>
               {records.map(record => (
                 <tr key={record.id}>
-                  <td>{new Date(record.date).toLocaleDateString('zh-TW')}</td> {/*
+                  <td>{new Date(record.date).toLocaleDateString('zh-TW')}</td>
                   <td>{record.type}</td>
                   <td>{record.category}</td>
                   <td>{record.amount}</td>
