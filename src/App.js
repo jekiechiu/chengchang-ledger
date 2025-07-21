@@ -17,7 +17,19 @@ function App() {
   const [editingImageUrl, setEditingImageUrl] = useState(null);
   const [clearExistingImage, setClearExistingImage] = useState(false);
 
-  const categories = ['管理費', '租金收入', '水電費', '維修費', '其他'];
+  const categories = [
+    '其他費用',
+    '維護管理費',
+    '委外清潔費',
+    '電梯保養費',
+    '電梯維修費',
+    '水塔清洗費',
+    '清潔人員獎金',
+    '公共設施電費',
+    '大樓硬體維修',
+    '消防設備維護',
+    '大樓雜項支出'
+  ];
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
