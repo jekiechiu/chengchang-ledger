@@ -1,6 +1,6 @@
 // src/App.js (修改端網站專用 - 增加餘額顯示)
 
-import React, { useState, useEffect } => 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import './App.css'; 
 
