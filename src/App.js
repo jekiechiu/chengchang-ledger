@@ -1,8 +1,7 @@
-// src/App.js (修改端網站專用 - 加入分頁功能)
+// src/App.js (修改端網站專用 - 增加餘額顯示)
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } => 'react';
 import axios from 'axios';
-// import { v4 as uuidv4 } from 'uuid'; // 如果有用到，確保此行存在
 import './App.css'; 
 
 function App() {
@@ -17,9 +16,8 @@ function App() {
     startDate: '', endDate: '', category: '所有項目'
   });
 
-  // !! 新增分頁相關的狀態和常數 !!
   const [currentPage, setCurrentPage] = useState(1);
-  const recordsPerPage = 20; // 每頁顯示 20 筆資料
+  const recordsPerPage = 20; 
 
   const categories = [
     '其他費用',
@@ -48,7 +46,7 @@ function App() {
     try {
       const response = await axios.get(`/api/records`, { params: searchParams });
       setRecords(response.data);
-      setCurrentPage(1); // !! 每次重新查詢後，將當前頁碼重設為第一頁 !!
+      setCurrentPage(1); 
     } catch (error) {
       console.error('Error fetching records:', error.response ? error.response.data : error.message);
     }
@@ -71,7 +69,7 @@ function App() {
     if (window.confirm('確定要刪除這筆記錄嗎？')) {
       try {
         await axios.delete(`/api/records/${recordId}`);
-        fetchRecords(); // 刷新列表
+        fetchRecords(); 
         alert('記錄已刪除！');
       } catch (error) {
         console.error('Error deleting record:', error.response ? error.response.data : error.message);
@@ -118,7 +116,7 @@ function App() {
       setEditingRecordId(null);
       setEditingImageUrl(null);
       setClearExistingImage(false);
-      fetchRecords(); // 刷新列表
+      fetchRecords(); 
     } catch (error) {
       console.error('Error submitting data:', error.response ? error.response.data : error.message);
       alert('操作失敗。');
@@ -142,26 +140,24 @@ function App() {
 
   const incomeTotal = records.filter(r => r.type === '收入').reduce((sum, r) => sum + parseFloat(r.amount || 0), 0);
   const expenseTotal = records.filter(r => r.type === '支出').reduce((sum, r) => sum + parseFloat(r.amount || 0), 0);
+  
+  // !! 新增餘額計算 !!
+  const balanceTotal = incomeTotal - expenseTotal;
 
   useEffect(() => {
     fetchRecords();
   }, []);
 
-  // 輔助函數：將數字格式化為貨幣顯示 (XXX,XXX)
   const formatCurrency = (number) => {
     return parseFloat(number || 0).toLocaleString('zh-TW', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
   };
 
-  // !! 新增分頁邏輯 !!
-  // 計算當前頁面要顯示的資料
   const indexOfLastRecord = currentPage * recordsPerPage;
   const indexOfFirstRecord = indexOfLastRecord - recordsPerPage;
   const currentRecords = records.slice(indexOfFirstRecord, indexOfLastRecord);
 
-  // 計算總頁數
   const totalPages = Math.ceil(records.length / recordsPerPage);
 
-  // 更改當前頁碼
   const paginate = (pageNumber) => setCurrentPage(pageNumber);
 
   return (
@@ -205,7 +201,7 @@ function App() {
             {editingImageUrl && (
               <div className="current-image">
                 <p>目前照片:</p>
-                <img src={editingImageUrl} alt="Current Attachment" style={{ width: '80px', height: 'auto' }} /> {/* 圖片大小調整為80px */}
+                <img src={editingImageUrl} alt="Current Attachment" style={{ width: '80px', height: 'auto' }} /> 
                 <label>
                   <input type="checkbox" checked={clearExistingImage} onChange={() => setClearExistingImage(!clearExistingImage)} />
                   清除現有照片
@@ -260,7 +256,6 @@ function App() {
                 </tr>
               </thead>
               <tbody>
-                {/* !! 這裡改為映射 currentRecords，而不是 records !! */}
                 {currentRecords.map(record => (
                   <tr key={record.id}>
                     <td>{new Date(record.date).toLocaleDateString('zh-TW')}</td>
@@ -286,7 +281,6 @@ function App() {
               </tbody>
             </table>
 
-            {/* !! 新增分頁控制按鈕 !! */}
             <div className="pagination">
               {Array.from({ length: totalPages }, (_, i) => (
                 <button
@@ -303,6 +297,8 @@ function App() {
         <div className="summary">
           <span>收入綜合: ${formatCurrency(incomeTotal)}</span>
           <span>支出綜合: ${formatCurrency(expenseTotal)}</span>
+          {/* !! 新增餘額顯示 !! */}
+          <span>餘額: ${formatCurrency(balanceTotal)}</span>
         </div>
       </section>
     </div>
