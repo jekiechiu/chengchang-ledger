@@ -74,7 +74,7 @@ function App() {
                       {record.image_url ? (
                         <a href={record.image_url} target="_blank" rel="noopener noreferrer">憑證</a>
                       ) : (
-                        <span>無</span>
+                        <span>-</span>
                       )}
                     </td>
                   </tr>
